@@ -5,7 +5,7 @@ pragma solidity ^0.8.20;
 // which earns yield via Gnosis Chain sDAI (aka sexyDAI)
 // and points this yield to the Breadchain Ecosystem
 // implemented by: kassandra.eth
-
+import {IBread} from "./interfaces/IBread.sol";
 import {
     SafeERC20,
     IERC20
@@ -22,7 +22,8 @@ import {ISXDAI} from "./interfaces/ISXDAI.sol";
 
 contract Bread is
     ERC20VotesUpgradeable,
-    OwnableUpgradeable
+    OwnableUpgradeable,
+    IBread
 {
     using SafeERC20 for IERC20;
     
