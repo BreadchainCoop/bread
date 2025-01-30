@@ -1,4 +1,4 @@
-# Bread Token V2
+# Bread Token 
 
 The Breadchain Stablecoin is an experiment in **lossless donations** or **crowdstaking** for the Breadchain Collective. The idea is that users mint BREAD which is pegged 1:1 with DAI however under the hood the DAI earns yield which is captured not by the token holders but the Breadchain Collective's public goods funding stream. Thus users who hold and transact with BREAD are actually continually donating to the Breadchain Collective's public goods funding stream.
 
