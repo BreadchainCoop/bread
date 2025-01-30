@@ -83,11 +83,12 @@ contract Bread is
     function mint(address receiver, uint256 amount) external {
         if (amount == 0) revert MintZero();
 
-        require(IERC20(address(wxDai)).transferFrom(msg.sender, address(this), amount), "Transfer failed");
+        IERC20(address(wxDai)).safeTransferFrom(msg.sender, address(this), amount);
+
         IERC20(address(wxDai)).safeIncreaseAllowance(address(sexyDai), amount);
         sexyDai.deposit(amount, address(this));
 
-        _mint(receiver, val);
+        _mint(receiver, amount);
         if (this.delegates(receiver) == address(0)) _delegate(receiver, receiver);
     }
 
