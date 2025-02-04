@@ -224,7 +224,201 @@ contract BreadTest is Test {
         vm.prank(address(0x42));
         breadToken.transferFrom(address(this), address(0x42), 1 ether);
     }
-    
 
+    // Tests for mint(address, amount)
+
+    function test_basic_deposits_newMint() public {
+        uint256 supplyBefore = breadToken.totalSupply();
+        uint256 balBefore = breadToken.balanceOf(address(this));
+        uint256 contractBalBefore = sexyDai.balanceOf(address(breadToken));
+        uint256 yieldBefore = breadToken.yieldAccrued();
+
+        assertEq(supplyBefore, 1 ether);
+        assertEq(balBefore, 0);
+        assertGt(contractBalBefore, 0);
+        assertLt(contractBalBefore, 1 ether);
+        assertEq(yieldBefore, 0);
+
+        vm.startPrank(randomHolder);
+        wxDai.approve(address(breadToken), 100 ether);
+        breadToken.mint(address(this), 1 ether);
+        vm.stopPrank();
+
+        uint256 supplyAfter = breadToken.totalSupply();
+        uint256 balAfter = breadToken.balanceOf(address(this));
+        uint256 contractBalAfter = sexyDai.balanceOf(address(breadToken));
+
+        assertEq(supplyAfter, supplyBefore + 1 ether);
+        assertEq(balAfter, balBefore + 1 ether);
+        assertGt(contractBalAfter, contractBalBefore);
+        assertLt(contractBalAfter, supplyAfter);
+
+        supplyBefore = supplyAfter;
+        balBefore = balAfter;
+        contractBalBefore = contractBalAfter;
+        uint256 randomHolderBalBefore = breadToken.balanceOf(randomHolder);
+        assertEq(randomHolderBalBefore, 0);
+
+        vm.startPrank(randomHolder);
+
+        wxDai.approve(address(breadToken), 100 ether);
+        breadToken.mint(randomHolder, 5 ether);
+        vm.stopPrank();
+
+        supplyAfter = breadToken.totalSupply();
+        assertEq(supplyAfter, supplyBefore + 5 ether);
+
+        balAfter = breadToken.balanceOf(address(this));
+        assertEq(balAfter, balBefore);
+
+        contractBalAfter = sexyDai.balanceOf(address(breadToken));
+        assertGt(contractBalAfter, contractBalBefore);
+        assertLt(contractBalAfter, supplyAfter);
+
+        uint256 randomHolderBalAfter = breadToken.balanceOf(randomHolder);
+        assertEq(randomHolderBalAfter, 5 ether);
+
+        // Trigger some yield by transferring wxDai directly to sexyDai
+        vm.roll(32661488);
+        vm.startPrank(randomHolder);
+        wxDai.transfer(address(sexyDai), 10000 ether);
+        vm.stopPrank();
+        vm.roll(32661489);
+
+        uint256 yieldAfter = breadToken.yieldAccrued();
+        assertGt(yieldAfter, yieldBefore);
+    }
+
+    function test_basic_withdraws_newMint() public {
+        uint256 supplyBefore = breadToken.totalSupply();
+        uint256 balBefore = breadToken.balanceOf(address(this));
+        uint256 yieldBefore = breadToken.yieldAccrued();
+
+        assertEq(supplyBefore, 1 ether);
+        assertEq(balBefore, 0);
+        assertEq(yieldBefore, 0);
+
+        // Approve and mint with the new function
+        vm.startPrank(randomHolder);
+        wxDai.approve(address(breadToken), 2 ether);
+        breadToken.mint(address(this), 2 ether);
+        vm.stopPrank();
+
+        uint256 supplyAfter = breadToken.totalSupply();
+        uint256 balAfter = breadToken.balanceOf(address(this));
+        uint256 contractBalAfter = sexyDai.balanceOf(address(breadToken));
+        assertEq(supplyAfter, supplyBefore + 2 ether);
+        assertEq(balAfter, balBefore + 2 ether);
+        assertGt(contractBalAfter, 0);
+
+        // Check yield accrual
+        vm.roll(32661490);
+        vm.prank(randomHolder);
+        wxDai.transfer(address(sexyDai), 10000 ether);
+        vm.roll(32661491);
+
+        uint256 yieldAfter = breadToken.yieldAccrued();
+        assertGt(yieldAfter, yieldBefore);
+    }
+
+    function test_burn_newMint() public {
+        vm.roll(326615001);
+        uint256 checkpoint = breadToken.numCheckpoints(randomHolder);
+        assertEq(checkpoint, 0);
+
+        vm.startPrank(randomHolder);
+        wxDai.approve(address(breadToken), 1 ether);
+        breadToken.mint(randomHolder, 1 ether);
+        vm.stopPrank();
+
+        checkpoint = breadToken.numCheckpoints(randomHolder);
+        assertEq(checkpoint, 1);
+
+        vm.roll(326615002);
+        vm.prank(randomHolder);
+        breadToken.burn(1 ether, randomHolder);
+        checkpoint = breadToken.numCheckpoints(randomHolder);
+        assertEq(checkpoint, 2);
+
+        vm.roll(326615003);
+        uint256 balBefore = address(this).balance;
+        uint256 supplyBefore = breadToken.totalSupply();
+
+        vm.startPrank(randomHolder);
+        wxDai.transfer(address(this), 2 ether);
+        vm.stopPrank();
+
+        wxDai.approve(address(breadToken), 1 ether);
+        breadToken.mint(address(this), 1 ether);
+
+        vm.roll(326615004);
+        breadToken.burn(0.5 ether, address(this));
+        assertEq(balBefore + 0.5 ether, address(this).balance);
+
+        uint256 supplyAfter = breadToken.totalSupply();
+        assertEq(supplyAfter, supplyBefore + 1 ether - 0.5 ether);
+    }
+
+    function test_yield_newMint() public {
+        vm.roll(32661496);
+        uint256 supplyBefore = breadToken.totalSupply();
+        uint256 yieldBefore = breadToken.yieldAccrued();
+        assertEq(supplyBefore, 1 ether);
+        assertEq(yieldBefore, 0);
+
+        vm.startPrank(randomHolder);
+        wxDai.approve(address(breadToken), 1 ether);
+        breadToken.mint(address(this), 1 ether);
+        vm.stopPrank();
+
+        uint256 supplyAfter = breadToken.totalSupply();
+        uint256 contractBalAfter = sexyDai.balanceOf(address(breadToken));
+        assertEq(supplyAfter, supplyBefore + 1 ether);
+        assertGt(contractBalAfter, 0);
+
+        // Update yield
+        vm.roll(32661497);
+        vm.prank(randomHolder);
+        wxDai.transfer(address(sexyDai), 10000 ether);
+        vm.roll(32661498);
+        uint256 yieldAfter = breadToken.yieldAccrued();
+        assertGt(yieldAfter, yieldBefore);
+
+        // Claim yield as yieldClaimer
+        vm.roll(32661499);
+        breadToken.setYieldClaimer(randomHolder);
+        vm.roll(32661500);
+        vm.prank(randomHolder);
+        breadToken.claimYield(1, randomHolder);
+    }
+
+    function test_transfer_from_newMint() public {
+        vm.startPrank(randomHolder);
+        wxDai.approve(address(breadToken), 2 ether);
+        breadToken.mint(address(this), 1 ether);
+        vm.stopPrank();
+
+        breadToken.approve(address(0x42), 1 ether);
+        vm.prank(address(0x42));
+        breadToken.transferFrom(address(this), address(0x42), 1 ether);
+
+        uint256 bal = breadToken.balanceOf(address(0x42));
+        assertEq(bal, 1 ether);
+    }
+
+    function test_allowance_newMint() public {
+        vm.startPrank(randomHolder);
+        wxDai.approve(address(breadToken), 1 ether);
+        breadToken.mint(address(this), 1 ether);
+        vm.stopPrank();
+
+        breadToken.approve(address(0x42), 1 ether);
+        uint256 allowance = breadToken.allowance(address(this), address(0x42));
+        assertEq(allowance, 1 ether);
+
+        vm.prank(address(0x42));
+        breadToken.transferFrom(address(this), address(0x42), 1 ether);
+    }
+    
     receive() external payable {}
 }
