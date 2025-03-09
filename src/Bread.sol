@@ -110,7 +110,7 @@ contract Bread is
         if (yield < amount) revert YieldInsufficient();
 
         _mint(receiver, amount);
-        _delegate(receiver, receiver);
+        if (this.delegates(receiver) == address(0)) _delegate(receiver, receiver);
 
         emit ClaimedYield(amount);
     }

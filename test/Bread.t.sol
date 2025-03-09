@@ -420,5 +420,61 @@ contract BreadTest is Test {
         breadToken.transferFrom(address(this), address(0x42), 1 ether);
     }
     
+    function test_claim_yield_delegation() public {
+        // This test verifies the fix for a centralization risk in claimYield:
+        // Previously, claimYield unconditionally set delegation for the receiver,
+        // which would allow owner/yieldClaimer to override anyone's delegation by
+        // claiming yield to their address. Now, it only sets delegation if none exists.
+
+        // Setup
+        vm.deal(address(this), 1 ether);
+        breadToken.mint{value: 0.01 ether}(address(this));
+        breadToken.setYieldClaimer(address(this));
+
+        address userAddress = address(0x123);
+        address customDelegate = address(0x456);
+        
+        vm.deal(address(this), 1 ether);
+        breadToken.mint{value: 0.01 ether}(userAddress);
+        
+        vm.startPrank(userAddress);
+        breadToken.delegate(customDelegate);
+        vm.stopPrank();
+        
+        assertEq(breadToken.delegates(userAddress), customDelegate);
+        
+        vm.roll(block.number + 1000);
+        vm.startPrank(randomHolder);
+        wxDai.transfer(address(sexyDai), 10000 ether);
+        vm.stopPrank();
+        vm.roll(block.number + 100);
+        
+        uint256 yieldAvailable = breadToken.yieldAccrued();
+        assertGt(yieldAvailable, 0);
+        
+        uint256 claimAmount = 0.00001 ether;
+        assertLt(claimAmount, yieldAvailable);
+        
+        uint256 initialSupply = breadToken.totalSupply();
+        breadToken.claimYield(claimAmount, userAddress);
+        
+        assertGt(breadToken.totalSupply(), initialSupply);
+        // Key check: verify delegation wasn't changed by claimYield
+        assertEq(breadToken.delegates(userAddress), customDelegate);
+        
+        address newUser = address(0x789);
+        
+        vm.roll(block.number + 100);
+        vm.startPrank(randomHolder);
+        wxDai.transfer(address(sexyDai), 10000 ether);
+        vm.stopPrank();
+        vm.roll(block.number + 100);
+        
+        assertEq(breadToken.delegates(newUser), address(0));
+        breadToken.claimYield(claimAmount, newUser);
+        // Check default behavior for new addresses is still intact
+        assertEq(breadToken.delegates(newUser), newUser);
+    }
+
     receive() external payable {}
 }
