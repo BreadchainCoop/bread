@@ -37,6 +37,7 @@ contract Bread is
     error OnlyClaimers();
     error MismatchArray();
     error MismatchAmount();
+    error InvalidRecipient();
 
     IWXDAI public immutable wxDai;
     ISXDAI public immutable sexyDai;
@@ -139,6 +140,11 @@ contract Bread is
         }
 
         if (!success) revert NativeTransferFailed();
+    }
+
+    function _update(address from, address to, uint256 value) internal override {
+        if (to == address(this)) revert InvalidRecipient();
+        super._update(from, to, value);
     }
 
     function transfer(address recipient, uint256 amount) public override returns (bool) {

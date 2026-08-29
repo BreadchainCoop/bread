@@ -476,5 +476,74 @@ contract BreadTest is Test {
         assertEq(breadToken.delegates(newUser), newUser);
     }
 
+    /// @dev BREAD credited to the token contract itself is rejected on every path:
+    /// transfer, transferFrom, both mints and claimYield.
+    function test_cannot_transfer_to_token_contract() public {
+        breadToken.mint{value: 1 ether}(address(this));
+
+        vm.expectRevert(Bread.InvalidRecipient.selector);
+        breadToken.transfer(address(breadToken), 1 ether);
+
+        assertEq(breadToken.balanceOf(address(this)), 1 ether);
+        assertEq(breadToken.balanceOf(address(breadToken)), 0);
+    }
+
+    function test_cannot_transferFrom_to_token_contract() public {
+        breadToken.mint{value: 1 ether}(address(this));
+        breadToken.approve(address(0x42), 1 ether);
+
+        vm.prank(address(0x42));
+        vm.expectRevert(Bread.InvalidRecipient.selector);
+        breadToken.transferFrom(address(this), address(breadToken), 1 ether);
+
+        assertEq(breadToken.balanceOf(address(this)), 1 ether);
+        assertEq(breadToken.balanceOf(address(breadToken)), 0);
+    }
+
+    function test_cannot_mint_native_to_token_contract() public {
+        vm.expectRevert(Bread.InvalidRecipient.selector);
+        breadToken.mint{value: 1 ether}(address(breadToken));
+
+        assertEq(breadToken.balanceOf(address(breadToken)), 0);
+    }
+
+    function test_cannot_mint_wxdai_to_token_contract() public {
+        vm.startPrank(randomHolder);
+        wxDai.approve(address(breadToken), 1 ether);
+        vm.expectRevert(Bread.InvalidRecipient.selector);
+        breadToken.mint(address(breadToken), 1 ether);
+        vm.stopPrank();
+
+        assertEq(breadToken.balanceOf(address(breadToken)), 0);
+    }
+
+    function test_cannot_claim_yield_to_token_contract() public {
+        breadToken.mint{value: 1 ether}(address(this));
+        vm.roll(32661497);
+        vm.prank(randomHolder);
+        wxDai.transfer(address(sexyDai), 10000 ether);
+        vm.roll(32661498);
+        assertGt(breadToken.yieldAccrued(), 0);
+
+        vm.expectRevert(Bread.InvalidRecipient.selector);
+        breadToken.claimYield(1, address(breadToken));
+
+        assertEq(breadToken.balanceOf(address(breadToken)), 0);
+    }
+
+    /// @dev burn() is paid out by wxDai.withdraw() sending xDAI to this contract,
+    /// so redemptions must keep working alongside the recipient check.
+    function test_burn_receives_native_after_recipient_check() public {
+        vm.deal(randomEOA, 1 ether);
+        vm.startPrank(randomEOA);
+        breadToken.mint{value: 1 ether}(randomEOA);
+        uint256 balBefore = randomEOA.balance;
+        breadToken.burn(1 ether, randomEOA);
+        vm.stopPrank();
+
+        assertEq(randomEOA.balance, balBefore + 1 ether);
+        assertEq(address(breadToken).balance, 0);
+    }
+
     receive() external payable {}
 }
